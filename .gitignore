@@ -1,9 +1,5 @@
 # Exclude raw large datasets
 datasets/
-
-# Exclude heavy machine learning binaries/saved models
-models/
-
 # Exclude python environment cache files
 __pycache__/
 *.pyc
