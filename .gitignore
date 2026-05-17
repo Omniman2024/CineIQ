@@ -1,5 +1,3 @@
-# Exclude raw large datasets
-datasets/
 # Exclude python environment cache files
 __pycache__/
 *.pyc
