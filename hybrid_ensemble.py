@@ -1,10 +1,16 @@
 import os
 import gc
+import time
 import pickle
 import numpy as np
 import pandas as pd
+import mlflow
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics.pairwise import linear_kernel
+
+# Zero setup local backend tracking configuration
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.set_experiment("CineIQ_Hybrid_Pipeline")
 
 SVD_PARQUET = 'processed/svd_view.parquet'
 CONTENT_PARQUET = 'processed/content_view.parquet'
@@ -107,6 +113,11 @@ def train_stacking_model(X, y):
     print(f"Learned Intercept:                 {intercept:.4f}")
     print("==================================\n")
     
+    # Log optimization coefficients directly to active tracking telemetry
+    mlflow.log_metric("w1", float(w1))
+    mlflow.log_metric("w2", float(w2))
+    mlflow.log_metric("intercept", float(intercept))
+    
     return meta_model
 
 def candidate_inference_combinator(active_users, collab_scores_dict, content_scores_dict, meta_model, svd_model, top_n=100):
@@ -145,48 +156,69 @@ def candidate_inference_combinator(active_users, collab_scores_dict, content_sco
     return hybrid_scores_dict
 
 def main():
-    print("Loading models and candidate dictionaries...")
-    svd_model = load_pkl(MODEL_SVD)
-    tfidf_matrix = load_pkl(TFIDF_MATRIX)
-    
-    collab_scores_dict = load_pkl(COLLAB_SCORES)
-    content_scores_dict = load_pkl(CONTENT_SCORES)
-    
-    active_users = list(collab_scores_dict.keys())
-    
-    print("Loading datasets...")
-    df_interactions = pd.read_parquet(SVD_PARQUET)
-    df_content = pd.read_parquet(CONTENT_PARQUET)
-    
-    df_content = df_content.reset_index(drop=True)
-    movie_id_to_idx = {row['movieId']: idx for idx, row in df_content.iterrows()}
-    
-    del df_content
-    gc.collect()
-    
-    X, y = build_meta_dataset(
-        df_interactions, active_users, svd_model, tfidf_matrix, movie_id_to_idx, sample_size=50000
-    )
-    
-    del df_interactions
-    gc.collect()
-    
-    meta_model = train_stacking_model(X, y)
-    
-    os.makedirs(os.path.dirname(META_MODEL_OUT), exist_ok=True)
-    with open(META_MODEL_OUT, 'wb') as f:
-        pickle.dump(meta_model, f)
+    # Start tracking context for the Stacking Ensemble Meta-Model policy
+    with mlflow.start_run():
+        start_pipeline_time = time.time()
         
-    hybrid_scores_dict = candidate_inference_combinator(
-        active_users, collab_scores_dict, content_scores_dict, meta_model, svd_model, top_n=100
-    )
-    
-    os.makedirs(os.path.dirname(HYBRID_SCORES_OUT), exist_ok=True)
-    print(f"Saving final hybrid recommendations to {HYBRID_SCORES_OUT}...")
-    with open(HYBRID_SCORES_OUT, 'wb') as f:
-        pickle.dump(hybrid_scores_dict, f)
+        # Log metadata parameters
+        sample_size_param = 50000
+        mlflow.log_param("sample_size", sample_size_param)
+        mlflow.log_param("random_state", RANDOM_STATE)
         
-    print("CineIQ Hybrid Ensemble Pipeline Complete.")
+        print("Loading models and candidate dictionaries...")
+        svd_model = load_pkl(MODEL_SVD)
+        tfidf_matrix = load_pkl(TFIDF_MATRIX)
+        
+        collab_scores_dict = load_pkl(COLLAB_SCORES)
+        content_scores_dict = load_pkl(CONTENT_SCORES)
+        
+        active_users = list(collab_scores_dict.keys())
+        mlflow.log_metric("active_users_count", len(active_users))
+        
+        print("Loading datasets...")
+        df_interactions = pd.read_parquet(SVD_PARQUET)
+        df_content = pd.read_parquet(CONTENT_PARQUET)
+        
+        df_content = df_content.reset_index(drop=True)
+        movie_id_to_idx = {row['movieId']: idx for idx, row in df_content.iterrows()}
+        
+        del df_content
+        gc.collect()
+        
+        X, y = build_meta_dataset(
+            df_interactions, active_users, svd_model, tfidf_matrix, movie_id_to_idx, sample_size=sample_size_param
+        )
+        
+        del df_interactions
+        gc.collect()
+        
+        # Train and automatically log w1, w2, intercept
+        meta_model = train_stacking_model(X, y)
+        
+        os.makedirs(os.path.dirname(META_MODEL_OUT), exist_ok=True)
+        with open(META_MODEL_OUT, 'wb') as f:
+            pickle.dump(meta_model, f)
+            
+        start_combinator_time = time.time()
+        hybrid_scores_dict = candidate_inference_combinator(
+            active_users, collab_scores_dict, content_scores_dict, meta_model, svd_model, top_n=100
+        )
+        end_combinator_time = time.time()
+        mlflow.log_metric("combinator_inference_time_seconds", end_combinator_time - start_combinator_time)
+        
+        os.makedirs(os.path.dirname(HYBRID_SCORES_OUT), exist_ok=True)
+        print(f"Saving final hybrid recommendations to {HYBRID_SCORES_OUT}...")
+        with open(HYBRID_SCORES_OUT, 'wb') as f:
+            pickle.dump(hybrid_scores_dict, f)
+            
+        # Log artifacts directly to local experiment payload tracker
+        mlflow.log_artifact(META_MODEL_OUT)
+        mlflow.log_artifact(HYBRID_SCORES_OUT)
+        
+        end_pipeline_time = time.time()
+        mlflow.log_metric("total_pipeline_time_seconds", end_pipeline_time - start_pipeline_time)
+        
+        print("CineIQ Hybrid Ensemble Pipeline Complete. Telemetry tracking logged.")
 
 if __name__ == "__main__":
     main()

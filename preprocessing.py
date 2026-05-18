@@ -1,5 +1,12 @@
+import os
+import ast
+import time
 import numpy as np 
 import pandas as pd 
+import mlflow
+
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.set_experiment("CineIQ_Preprocessing")
 
 def preview_datasets():
     print("--- IMDB Reviews ---")
@@ -58,7 +65,6 @@ def get_collaborative_view():
     return svd_df
 
 def get_content_view():
-    import ast
     print("Loading datasets for Content View...")
     links_df = pd.read_csv('datasets/movie25lens/links.csv', usecols=['movieId', 'tmdbId'])
     links_df = links_df.dropna(subset=['tmdbId'])
@@ -150,7 +156,6 @@ def get_sentiment_view():
     return imdb_df
 
 def get_taste_dashboard_view():
-    import ast
     print("Loading datasets for Taste Dashboard...")
     
     ratings_df = pd.read_csv('datasets/movie25lens/ratings.csv', 
@@ -226,19 +231,34 @@ def get_taste_dashboard_view():
     
     return final_taste_df
 
+
 if __name__ == "__main__":
-    svd_data = get_collaborative_view()
-    content_data = get_content_view()
-    sentiment_data = get_sentiment_view()
-    taste_dashboard_data = get_taste_dashboard_view()
+    with mlflow.start_run():
+        start_time = time.time()
+        
+        svd_data = get_collaborative_view()
+        content_data = get_content_view()
+        sentiment_data = get_sentiment_view()
+        taste_dashboard_data = get_taste_dashboard_view()
 
-    import os
-    os.makedirs('processed', exist_ok=True)
+        mlflow.log_metric("raw_input_ratings_rows", svd_data.shape[0])
+        mlflow.log_metric("raw_input_sentiment_reviews", sentiment_data.shape[0])
 
-    print("Saving processed dataframes...")
-    svd_data.to_parquet('processed/svd_view.parquet')
-    content_data.to_parquet('processed/content_view.parquet')
-    sentiment_data.to_parquet('processed/sentiment_view.parquet')
-    taste_dashboard_data.to_parquet('processed/dashboard_view.parquet')
-    
-    print("All files saved in 'processed/' folder.")
+        os.makedirs('processed', exist_ok=True)
+
+        print("Saving processed dataframes...")
+        svd_data.to_parquet('processed/svd_view.parquet')
+        content_data.to_parquet('processed/content_view.parquet')
+        sentiment_data.to_parquet('processed/sentiment_view.parquet')
+        taste_dashboard_data.to_parquet('processed/dashboard_view.parquet')
+        
+        mlflow.log_metric("svd_view_rows", svd_data.shape[0])
+        mlflow.log_metric("content_view_rows", content_data.shape[0])
+        mlflow.log_metric("sentiment_view_rows", sentiment_data.shape[0])
+        mlflow.log_metric("dashboard_view_rows", taste_dashboard_data.shape[0])
+        
+        end_time = time.time()
+        duration = end_time - start_time
+        mlflow.log_metric("total_clean_time_seconds", duration)
+        
+        print(f"All files saved in 'processed/' folder. SQLite tracking complete. Total Time: {duration:.2f}s")
