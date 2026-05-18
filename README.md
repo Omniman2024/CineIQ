@@ -121,3 +121,8 @@ python3 reranker.py
 ```bash
 streamlit run app.py
 ```
+
+**5. View MLflow experimental tracking:**
+```bash
+mlflow ui --backend-store-uri sqlite:///mlflow.db
+```

@@ -1,8 +1,10 @@
 import os
 import gc
+import time
 import pickle
 import numpy as np
 import pandas as pd
+import mlflow
 
 import nltk
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
@@ -13,6 +15,9 @@ try:
     TRANSFORMERS_AVAILABLE = True
 except ImportError:
     TRANSFORMERS_AVAILABLE = False
+
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.set_experiment("CineIQ_Sentiment_Reranking")
 
 HYBRID_SCORES = 'processed/hybrid_scores.pkl'
 CONTENT_PARQUET = 'processed/content_view.parquet'
@@ -45,7 +50,7 @@ def benchmark_models(sample_size=2000):
     print(f"Loading {IMDB_CSV} for validation benchmark...")
     if not os.path.exists(IMDB_CSV):
         print(f"Warning: {IMDB_CSV} not found. Skipping benchmark.")
-        return
+        return 0.0, 0.0
         
     df_imdb = pd.read_csv(IMDB_CSV)
     
@@ -65,7 +70,8 @@ def benchmark_models(sample_size=2000):
     for text in reviews:
         score = sia.polarity_scores(text)['compound']
         vader_preds.append(1 if score > 0 else 0)
-    vader_acc = np.mean(np.array(vader_preds) == labels)
+    vader_acc = float(np.mean(np.array(vader_preds) == labels))
+    mlflow.log_metric("vader_accuracy", vader_acc)
     
     # -- Option B: DistilBERT Benchmark --
     distilbert_acc = 0.0
@@ -76,7 +82,9 @@ def benchmark_models(sample_size=2000):
             
             results = classifier(reviews, batch_size=32)
             bert_preds = [1 if r['label'] == 'POSITIVE' else 0 for r in results]
-            distilbert_acc = np.mean(np.array(bert_preds) == labels)
+            distilbert_acc = float(np.mean(np.array(bert_preds) == labels))
+            
+            mlflow.log_metric("distilbert_accuracy", distilbert_acc)
             
             del classifier
             gc.collect()
@@ -90,6 +98,8 @@ def benchmark_models(sample_size=2000):
     if TRANSFORMERS_AVAILABLE:
         print(f"DistilBERT Accuracy: {distilbert_acc*100:.2f}%")
     print("===================================\n")
+    
+    return vader_acc, distilbert_acc
 
 def compute_sentiment_scores(unique_movie_ids, use_transformer=False):
     print(f"Extracting movie text profiles for {len(unique_movie_ids)} unique hybrid candidates...")
@@ -155,26 +165,40 @@ def apply_sentiment_reranking(hybrid_scores_dict, sentiment_scores, alpha=0.1, t
     return final_ranked_dict
 
 def main():
-    benchmark_models(sample_size=2000)
-    
-    print(f"Loading hybrid candidate scores from {HYBRID_SCORES}...")
-    with open(HYBRID_SCORES, 'rb') as f:
-        hybrid_scores_dict = pickle.load(f)
+    with mlflow.start_run():
+        validation_sample = 2000
+        analyzer_choice = "DistilBERT" if (USE_TRANSFORMER and TRANSFORMERS_AVAILABLE) else "VADER"
         
-    unique_movie_ids = set()
-    for candidates in hybrid_scores_dict.values():
-        unique_movie_ids.update(candidates.keys())
+        mlflow.log_param("alpha", ALPHA)
+        mlflow.log_param("validation_sample_size", validation_sample)
+        mlflow.log_param("analyzer_choice", analyzer_choice)
         
-    sentiment_scores = compute_sentiment_scores(unique_movie_ids, use_transformer=USE_TRANSFORMER)
-    
-    final_ranked_dict = apply_sentiment_reranking(hybrid_scores_dict, sentiment_scores, alpha=ALPHA, top_n=100)
-    
-    os.makedirs(os.path.dirname(FINAL_RANKED_OUT), exist_ok=True)
-    print(f"Saving finalized sentiment-aware recommendations to {FINAL_RANKED_OUT}...")
-    with open(FINAL_RANKED_OUT, 'wb') as f:
-        pickle.dump(final_ranked_dict, f)
+        benchmark_models(sample_size=validation_sample)
         
-    print("CineIQ Re-Ranking Pipeline Complete.")
+        print(f"Loading hybrid candidate scores from {HYBRID_SCORES}...")
+        with open(HYBRID_SCORES, 'rb') as f:
+            hybrid_scores_dict = pickle.load(f)
+            
+        unique_movie_ids = set()
+        for candidates in hybrid_scores_dict.values():
+            unique_movie_ids.update(candidates.keys())
+            
+        mlflow.log_metric("unique_candidates_reranked", len(unique_movie_ids))
+            
+        start_inference_time = time.time()
+        sentiment_scores = compute_sentiment_scores(unique_movie_ids, use_transformer=USE_TRANSFORMER)
+        final_ranked_dict = apply_sentiment_reranking(hybrid_scores_dict, sentiment_scores, alpha=ALPHA, top_n=100)
+        end_inference_time = time.time()
+        
+        mlflow.log_metric("inference_duration_seconds", end_inference_time - start_inference_time)
+        
+        os.makedirs(os.path.dirname(FINAL_RANKED_OUT), exist_ok=True)
+        print(f"Saving finalized sentiment-aware recommendations to {FINAL_RANKED_OUT}...")
+        with open(FINAL_RANKED_OUT, 'wb') as f:
+            pickle.dump(final_ranked_dict, f)
+            
+        mlflow.log_artifact(FINAL_RANKED_OUT)
+        print("CineIQ Re-Ranking Pipeline Complete. Metrics and payload logged.")
 
 if __name__ == "__main__":
     main()

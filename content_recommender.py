@@ -1,10 +1,15 @@
 import os
 import gc
+import time
 import pickle
 import numpy as np
 import pandas as pd
+import mlflow
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel
+
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.set_experiment("CineIQ_Content")
 
 CONTENT_PARQUET = 'processed/content_view.parquet'
 SVD_PARQUET = 'processed/svd_view.parquet'
@@ -36,18 +41,24 @@ def get_active_users(df_interactions):
 
 def build_tfidf_features(df_content, max_features=5000):
     print("Fitting TF-IDF Vectorizer...")
-    tfidf = TfidfVectorizer(stop_words='english', max_features=max_features)
+    stop_words_param = 'english'
+    tfidf = TfidfVectorizer(stop_words=stop_words_param, max_features=max_features)
+    
+    mlflow.log_param("max_features", max_features)
+    mlflow.log_param("stop_words", stop_words_param)
     
     tfidf_matrix = tfidf.fit_transform(df_content['soup'])
     
     print(f"TF-IDF Matrix shape: {tfidf_matrix.shape}")
+    
+    mlflow.log_metric("vocab_length", len(tfidf.vocabulary_))
+    mlflow.log_metric("tfidf_matrix_rows", tfidf_matrix.shape[0])
+    
     return tfidf, tfidf_matrix
 
 def generate_user_taste_vector(user_id, df_interactions, tfidf_matrix, movie_id_to_idx):
     user_history = df_interactions[df_interactions['userId'] == user_id]
-    
     positive_history = user_history[user_history['rating'] >= 3.5]
-    
     rated_movie_ids = set(user_history['movieId'].unique())
     
     if positive_history.empty:
@@ -66,13 +77,9 @@ def generate_user_taste_vector(user_id, df_interactions, tfidf_matrix, movie_id_
         return None, rated_movie_ids
         
     movie_vectors = tfidf_matrix[movie_indices]
-    
     weights = np.array(weights).reshape(-1, 1)
-    
     weighted_sum = movie_vectors.T.dot(weights).ravel()
-    
     user_taste_vector = weighted_sum / np.sum(weights)
-    
     user_taste_vector = user_taste_vector.reshape(1, -1)
     
     return user_taste_vector, rated_movie_ids
@@ -86,7 +93,6 @@ def compute_user_content_scores(user_id, df_interactions, tfidf_matrix, df_conte
         return {}
         
     sim_scores = linear_kernel(user_taste_vector, tfidf_matrix).flatten()
-    
     sim_scores = sim_scores * 5.0
     
     k = min(len(sim_scores) - 1, top_n + len(rated_movie_ids))
@@ -94,7 +100,6 @@ def compute_user_content_scores(user_id, df_interactions, tfidf_matrix, df_conte
         return {}
         
     top_indices = np.argpartition(sim_scores, -k)[-k:]
-    
     top_indices = top_indices[np.argsort(sim_scores[top_indices])[::-1]]
     
     final_scores = {}
@@ -108,43 +113,58 @@ def compute_user_content_scores(user_id, df_interactions, tfidf_matrix, df_conte
     return final_scores
 
 def main():
-    df_content, df_interactions = load_data()
-    
-    df_content = df_content.reset_index(drop=True)
-    movie_id_to_idx = {row['movieId']: idx for idx, row in df_content.iterrows()}
-    
-    tfidf_vectorizer, tfidf_matrix = build_tfidf_features(df_content, max_features=5000)
-    
-    os.makedirs(os.path.dirname(VECTORIZER_OUT), exist_ok=True)
-    print(f"Saving TF-IDF vectorizer to {VECTORIZER_OUT}...")
-    with open(VECTORIZER_OUT, 'wb') as f:
-        pickle.dump(tfidf_vectorizer, f)
+    with mlflow.start_run():
+        start_pipeline_time = time.time()
         
-    print(f"Saving TF-IDF matrix to {TFIDF_MATRIX_OUT}...")
-    with open(TFIDF_MATRIX_OUT, 'wb') as f:
-        pickle.dump(tfidf_matrix, f)
+        df_content, df_interactions = load_data()
         
-    active_users = get_active_users(df_interactions)
+        df_content = df_content.reset_index(drop=True)
+        movie_id_to_idx = {row['movieId']: idx for idx, row in df_content.iterrows()}
         
-    print(f"Pre-computing content scores for {len(active_users)} active users...")
-    batch_content_scores = {}
-    
-    for i, user_id in enumerate(active_users):
-        if i > 0 and i % 50 == 0:
-            print(f"Processed {i}/{len(active_users)} users...")
-            gc.collect()
+        tfidf_vectorizer, tfidf_matrix = build_tfidf_features(df_content, max_features=5000)
+        
+        os.makedirs(os.path.dirname(VECTORIZER_OUT), exist_ok=True)
+        print(f"Saving TF-IDF vectorizer to {VECTORIZER_OUT}...")
+        with open(VECTORIZER_OUT, 'wb') as f:
+            pickle.dump(tfidf_vectorizer, f)
             
-        scores = compute_user_content_scores(
-            user_id, df_interactions, tfidf_matrix, df_content, movie_id_to_idx, top_n=100
-        )
-        batch_content_scores[user_id] = scores
+        print(f"Saving TF-IDF matrix to {TFIDF_MATRIX_OUT}...")
+        with open(TFIDF_MATRIX_OUT, 'wb') as f:
+            pickle.dump(tfidf_matrix, f)
+            
+        active_users = get_active_users(df_interactions)
+        mlflow.log_metric("active_users_evaluated", len(active_users))
+            
+        print(f"Pre-computing content scores for {len(active_users)} active users...")
+        batch_content_scores = {}
         
-    os.makedirs(os.path.dirname(SCORES_OUT), exist_ok=True)
-    print(f"Saving precomputed content scores to {SCORES_OUT}...")
-    with open(SCORES_OUT, 'wb') as f:
-        pickle.dump(batch_content_scores, f)
+        start_inference_time = time.time()
+        for i, user_id in enumerate(active_users):
+            if i > 0 and i % 50 == 0:
+                print(f"Processed {i}/{len(active_users)} users...")
+                gc.collect()
+                
+            scores = compute_user_content_scores(
+                user_id, df_interactions, tfidf_matrix, df_content, movie_id_to_idx, top_n=100
+            )
+            batch_content_scores[user_id] = scores
+            
+        end_inference_time = time.time()
+        mlflow.log_metric("batch_inference_time_seconds", end_inference_time - start_inference_time)
+            
+        os.makedirs(os.path.dirname(SCORES_OUT), exist_ok=True)
+        print(f"Saving precomputed content scores to {SCORES_OUT}...")
+        with open(SCORES_OUT, 'wb') as f:
+            pickle.dump(batch_content_scores, f)
+            
+        mlflow.log_artifact(VECTORIZER_OUT)
+        mlflow.log_artifact(TFIDF_MATRIX_OUT)
+        mlflow.log_artifact(SCORES_OUT)
         
-    print("CineIQ Content-Based Pipeline Complete.")
+        end_pipeline_time = time.time()
+        mlflow.log_metric("total_pipeline_time_seconds", end_pipeline_time - start_pipeline_time)
+        
+        print("CineIQ Content-Based Pipeline Complete. Tracking metrics and serializations registered.")
 
 if __name__ == "__main__":
     main()
