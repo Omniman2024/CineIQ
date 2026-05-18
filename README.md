@@ -13,7 +13,7 @@ The pipeline transitions through 5 modular phases as a complete end-to-end recom
 4. **Phase 3: Contextual Sentiment Re-Ranking (reranker.py):** A secondary NLP auditing layer that runs deep transformer inference using a pre-trained DistilBERT pipeline (benchmarked against a 50K row IMDB baseline) to audit public cinematic reception, applying a sentiment catalyst nudge to output the definitive target file at final_ranked_scores.pkl.
 5. **Phase 4: Explainable Visual Analytics (app.py):** A production-tier Streamlit deployment running a local 5-Tier Explainability Routing Engine. Leverages front-end cache aggregation (@st.cache_data) and forced garbage collection (gc.collect()) to handle dashboard data lookups under hardware limits.
 
-## 🛠️ Tech Stack
+## Tech Stack
 - **Language:** Python
 - **Data Engineering:** Pandas, NumPy, PyArrow, FastParquet
 - **Machine Learning (Collaborative & Content):** Scikit-Learn, Scikit-Surprise
@@ -21,7 +21,7 @@ The pipeline transitions through 5 modular phases as a complete end-to-end recom
 - **MLOps & Tracking:** MLflow
 - **Frontend & Visual Analytics:** Streamlit, Plotly
 
-## 📦 Dependencies
+## Dependencies
 The primary dependencies powering CineIQ are isolated in `requirements.txt`:
 - `numpy==1.26.4`
 - `pandas==2.3.3`
@@ -36,7 +36,7 @@ The primary dependencies powering CineIQ are isolated in `requirements.txt`:
 - `streamlit==1.57.0`
 - `plotly==6.7.0`
 
-##  Workspace Directory Structure
+## Workspace Directory Structure
 
 ```text
 CineIQ/
@@ -81,7 +81,7 @@ CineIQ/
 └── verify_recommendations.py            # Terminal utility for qualitative ground-truth vibe checks
 ```
 
-##  Datasets Mapping
+## Datasets Mapping
 
 | Dataset File | Used in Script (.py) | Target Model (.pkl/.parquet) |
 |---|---|---|
@@ -97,7 +97,7 @@ CineIQ/
 | `tmdb/links.csv` | `preprocessing.py` | `content_view.parquet` |
 | `tmdb/movies_metadata.csv` | `preprocessing.py` | `content_view.parquet`, `dashboard_view.parquet` |
 
-##  Core Algorithmic Metrics & Empirical Wins
+## Core Algorithmic Metrics & Empirical Wins
 Our pipeline execution yielded the following empirical results during validation:
 
 ### Stacking Meta-Model Policy Coefficients
@@ -113,7 +113,7 @@ Before deploying our sentiment catalyst logic, we benchmarked NLP analyzers agai
 - **Lexical VADER Baseline:** `69.70%`
 - **Contextual DistilBERT Pipeline:** `88.25%`
 
-##  Big Data & Hardware Optimization Highlights
+## Big Data & Hardware Optimization Highlights
 Handling 25 million interaction rows on a 16GB RAM laptop requires strict memory-safeguard engineering. The following optimizations allowed CineIQ to scale efficiently:
 
 - **Downcasting & Parquet Strategy:** Converting raw datasets to stringified text "soups" and aggressively downcasting numerical interaction datatypes to dense Parquet arrays to save substantial cold-storage overhead.
