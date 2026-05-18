@@ -1,6 +1,6 @@
 #  CineIQ: Enterprise-Grade Hybrid Recommendation Engine
 
-CineIQ is an enterprise-grade, multi-stage hybrid recommendation pipeline built to handle large-scale movie and interaction datasets within localized consumer hardware constraints (16GB RAM / GTX 1660 Ti). The core architecture shifts seamlessly from raw vector parsing to an optimized machine learning ensemble and a contextual transformer re-ranking stage.
+CineIQ is an enterprise-grade, multi-stage hybrid recommendation pipeline built to handle large scale movie and interaction datasets within localized consumer hardware constraints (16GB RAM / GTX 1660 Ti). The core architecture shifts seamlessly from raw vector parsing to an optimized machine learning ensemble and a contextual transformer re-ranking stage.
 
 ![CineIQ Flowchart](cineiq_fc.jpeg)
 
