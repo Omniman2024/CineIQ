@@ -136,7 +136,15 @@ git lfs pull
 pip install -r requirements.txt
 ```
 
-**3. Execute the backend machine learning pipeline sequentially:**
+**3. Remove files**
+```bash
+rm -rf mlruns mlflow.db
+rm -f models/*.pkl
+rm -f processed/*.pkl
+rm -f processed/*.parquet
+```
+
+**4. Execute the backend machine learning pipeline sequentially:**
 ```bash
 python3 preprocessing.py
 python3 collaborative_recommender.py
@@ -145,12 +153,12 @@ python3 hybrid_ensemble.py
 python3 reranker.py
 ```
 
-**4. Launch the interactive dashboard UI:**
+**5. Launch the interactive dashboard UI:**
 ```bash
 streamlit run app.py
 ```
 
-**5. View MLflow experimental tracking:**
+**6. View MLflow experimental tracking:**
 ```bash
 mlflow ui --backend-store-uri sqlite:///mlflow.db
 ```
