@@ -13,6 +13,29 @@ The pipeline transitions through 5 modular phases as a complete end-to-end recom
 4. **Phase 3: Contextual Sentiment Re-Ranking (reranker.py):** A secondary NLP auditing layer that runs deep transformer inference using a pre-trained DistilBERT pipeline (benchmarked against a 50K row IMDB baseline) to audit public cinematic reception, applying a sentiment catalyst nudge to output the definitive target file at final_ranked_scores.pkl.
 5. **Phase 4: Explainable Visual Analytics (app.py):** A production-tier Streamlit deployment running a local 5-Tier Explainability Routing Engine. Leverages front-end cache aggregation (@st.cache_data) and forced garbage collection (gc.collect()) to handle dashboard data lookups under hardware limits.
 
+## 🛠️ Tech Stack
+- **Language:** Python
+- **Data Engineering:** Pandas, NumPy, PyArrow, FastParquet
+- **Machine Learning (Collaborative & Content):** Scikit-Learn, Scikit-Surprise
+- **Deep Learning (NLP & Sentiment):** PyTorch, Hugging Face Transformers, NLTK
+- **MLOps & Tracking:** MLflow
+- **Frontend & Visual Analytics:** Streamlit, Plotly
+
+## 📦 Dependencies
+The primary dependencies powering CineIQ are isolated in `requirements.txt`:
+- `numpy==1.26.4`
+- `pandas==2.3.3`
+- `pyarrow==24.0.0`
+- `fastparquet==2026.5.0`
+- `scikit-surprise==1.1.4`
+- `scikit-learn==1.7.2`
+- `scipy==1.15.3`
+- `nltk==3.9.4`
+- `torch==2.5.1+cu121`
+- `transformers==5.8.1`
+- `streamlit==1.57.0`
+- `plotly==6.7.0`
+
 ##  Workspace Directory Structure
 
 ```text
