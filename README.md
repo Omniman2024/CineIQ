@@ -2,16 +2,16 @@
 
 CineIQ is an enterprise-grade, multi-stage hybrid recommendation pipeline built to handle large-scale movie and interaction datasets within localized consumer hardware constraints (16GB RAM / GTX 1660 Ti). The core architecture shifts seamlessly from raw vector parsing to an optimized machine learning ensemble and a contextual transformer re-ranking stage.
 
-##  Architectural Summary
-The pipeline transitions through 4 modular steps:
-
-
 ![CineIQ Flowchart](cineiq_fc.jpeg)
 
-1. **Candidate Retrieval Phase:** Dual-track engine leveraging Matrix Factorization (Surprise SVD) for behavioral collaborative filtering and TF-IDF Text Vectorization with Linear Kernel similarity for metadata content-based filtering.
-2. **Feature-Weighted Linear Stacking:** An Ordinary Least Squares (OLS) Linear Regression meta-model that dynamically evaluates baseline scores against historical user interactions to eliminate human weighting guesswork.
-3. **Contextual Sentiment Re-Ranking:** A secondary transformer-driven scoring step using a pre-trained DistilBERT pipeline to audit public cinematic reception and nudge final item rankings.
-4. **UI Visual Analytics & Explainability Layer:** A production front-end dashboard featuring local feature-importance routing to break open the "black box" model and display 5 distinct types of human-readable matching logic.
+## Architectural Summary
+The pipeline transitions through 5 modular phases as a complete end-to-end recommendation workflow:
+1. **Phase 0: Data Preprocessing (preprocessing.py):** Ingests raw datasets to execute memory-optimized data cleaning and downcasting. Handles text "soup" generation and exports serialized, highly structured Parquet data views (svd_view.parquet and content_view.parquet) to minimize runtime overhead.
+2. **Phase 1A: Collaborative Filtering (collaborative_recommender.py):** A behavioral modeling track utilizing SVD Matrix Factorization via the Surprise library to evaluate historical interaction patterns and map candidate predictions to collaborative_scores.pkl.
+2. **Phase 1B: Content-Based Filtering (content_recommender.py):** A high-dimensional metadata modeling track implementing TF-IDF Text Vectorization and Linear Kernel Similarity calculations on movie profile configurations to generate independent candidate payloads at content_scores.pkl.
+3. **Phase 2: Weighted Stacking Ensemble (hybrid_ensemble.py):** Aggregates the candidate vectors through a Union & Deduplication checkpoint before training an Ordinary Least Squares (OLS) Linear Regression meta-model. This optimization loop learns exact mathematical coefficients ($w_1, w_2$) and the intercept to establish a balanced hybrid policy saved at hybrid_scores.pkl.
+4. **Phase 3: Contextual Sentiment Re-Ranking (reranker.py):** A secondary NLP auditing layer that runs deep transformer inference using a pre-trained DistilBERT pipeline (benchmarked against a 50K row IMDB baseline) to audit public cinematic reception, applying a sentiment catalyst nudge to output the definitive target file at final_ranked_scores.pkl.
+5. **Phase 4: Explainable Visual Analytics (app.py):** A production-tier Streamlit deployment running a local 5-Tier Explainability Routing Engine. Leverages front-end cache aggregation (@st.cache_data) and forced garbage collection (gc.collect()) to handle dashboard data lookups under hardware limits.
 
 ##  Workspace Directory Structure
 
