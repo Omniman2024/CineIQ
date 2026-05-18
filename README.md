@@ -1,8 +1,8 @@
-# 🍿 CineIQ: Enterprise-Grade Hybrid Recommendation Engine
+#  CineIQ: Enterprise-Grade Hybrid Recommendation Engine
 
 CineIQ is an enterprise-grade, multi-stage hybrid recommendation pipeline built to handle large-scale movie and interaction datasets within localized consumer hardware constraints (16GB RAM / GTX 1660 Ti). The core architecture shifts seamlessly from raw vector parsing to an optimized machine learning ensemble and a contextual transformer re-ranking stage.
 
-## 🏗️ Architectural Summary
+##  Architectural Summary
 The pipeline transitions through 4 modular steps:
 
 1. **Candidate Retrieval Phase:** Dual-track engine leveraging Matrix Factorization (Surprise SVD) for behavioral collaborative filtering and TF-IDF Text Vectorization with Linear Kernel similarity for metadata content-based filtering.
@@ -10,7 +10,7 @@ The pipeline transitions through 4 modular steps:
 3. **Contextual Sentiment Re-Ranking:** A secondary transformer-driven scoring step using a pre-trained DistilBERT pipeline to audit public cinematic reception and nudge final item rankings.
 4. **UI Visual Analytics & Explainability Layer:** A production front-end dashboard featuring local feature-importance routing to break open the "black box" model and display 5 distinct types of human-readable matching logic.
 
-## 📂 Workspace Directory Structure
+##  Workspace Directory Structure
 
 ```text
 CineIQ/
@@ -52,7 +52,7 @@ CineIQ/
 └── verify_recommendations.py            # Terminal utility for qualitative ground-truth vibe checks
 ```
 
-## 📊 Core Algorithmic Metrics & Empirical Wins
+##  Core Algorithmic Metrics & Empirical Wins
 Our pipeline execution yielded the following empirical results during validation:
 
 ### Stacking Meta-Model Policy Coefficients
@@ -75,7 +75,7 @@ Handling 25 million interaction rows on a 16GB RAM laptop requires strict memory
 - **Unique Candidate Filtering:** By enforcing a distinct key-union strategy across targeted active profiles, we reduced the final NLP re-ranking inference workload by **over 90%** (shrinking the payload from 50,000 potential rows down to just 3,554 unique movie entities).
 - **Streamlit Cache Aggregation:** Front-end lookup loaders are decorated with `@st.cache_data` and trigger explicit garbage collection (`gc.collect()`) after serialization. This prevents memory leaks and ensures near-zero interface transition latency during dynamic user filtering.
 
-## 🚀 Execution & Replication Guide
+##  Execution & Replication Guide
 To stand up the CineIQ environment and dashboard on your local machine, run the following commands sequentially:
 
 **1. Clone the repository:**
