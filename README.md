@@ -14,7 +14,7 @@ The pipeline transitions through 4 modular steps:
 
 ```text
 CineIQ/
-├── datasets/                            # [Ignored via .gitignore] 
+├── datasets/                            # [Tracked via Git LFS]
 │   ├── imdb.csv                         # Validation set (50K reviews) for sentiment benchmarking
 │   ├── movie25lens/
 │   │   ├── genome-scores.csv            # Tag relevance scores for movies
@@ -28,12 +28,12 @@ CineIQ/
 │       ├── keywords.csv                 # Plot keywords and descriptive tags
 │       ├── links.csv                    # Movie identifiers mapping to IMDB
 │       └── movies_metadata.csv          # Comprehensive TMDB movie metadata (revenue, overview, etc.)
-├── models/                              # [Ignored via .gitignore] 
+├── models/                              # [Tracked via Git LFS] 
 │   ├── stacking_meta_model.pkl          # OLS Linear Regression coefficients for the hybrid policy
 │   ├── svd_model.pkl                    # Serialized Surprise Matrix Factorization weights
 │   ├── tfidf_matrix.pkl                 # Precomputed sparse matrix of movie text feature vectors
 │   └── tfidf_vectorizer.pkl             # Trained TF-IDF vocabulary schema
-├── processed/                           # [Ignored via .gitignore] 
+├── processed/                           # [Tracked via Git LFS] 
 │   ├── collaborative_scores.pkl         # SVD candidate prediction dictionaries {userId: {movieId: score}}
 │   ├── content_scores.pkl               # Cosine similarity candidate dictionaries
 │   ├── content_view.parquet             # Memory-optimized textual "soup" profiles for TF-IDF
@@ -41,7 +41,8 @@ CineIQ/
 │   ├── final_ranked_scores.pkl          # Definitive recommendation payload (Sentiment-adjusted)
 │   ├── hybrid_scores.pkl                # Pre-sentiment stacked ensemble candidate scores
 │   └── svd_view.parquet                 # Downcasted [userId, movieId, rating] matrix for Surprise
-├── .gitignore                           # Configuration explicitly preventing heavy data uploads
+├── .gitattributes                       # Git LFS configuration for tracking heavy files (.csv, .pkl, .parquet)
+├── .gitignore                           # Prevents tracking of local runtime caches (like __pycache__, .pytest_cache, or .DS_Store)
 ├── app.py                               # Streamlit Dashboard UI & 5-Tier Explainability Routing Engine
 ├── collaborative_recommender.py         # Step 1A: Trains SVD & generates Collaborative candidates
 ├── content_recommender.py               # Step 1B: Trains TF-IDF & generates Content-based candidates
@@ -68,7 +69,7 @@ Before deploying our sentiment catalyst logic, we benchmarked NLP analyzers agai
 - **Lexical VADER Baseline:** `69.70%`
 - **Contextual DistilBERT Pipeline:** `88.25%`
 
-## ⚡ Big Data & Hardware Optimization Highlights
+##  Big Data & Hardware Optimization Highlights
 Handling 25 million interaction rows on a 16GB RAM laptop requires strict memory-safeguard engineering. The following optimizations allowed CineIQ to scale efficiently:
 
 - **Downcasting & Parquet Strategy:** Converting raw datasets to stringified text "soups" and aggressively downcasting numerical interaction datatypes to dense Parquet arrays to save substantial cold-storage overhead.
@@ -78,10 +79,12 @@ Handling 25 million interaction rows on a 16GB RAM laptop requires strict memory
 ##  Execution & Replication Guide
 To stand up the CineIQ environment and dashboard on your local machine, run the following commands sequentially:
 
-**1. Clone the repository:**
+**1. Clone the repository and pull heavy data:**
 ```bash
+git lfs install
 git clone https://github.com/Omniman2024/CineIQ.git
 cd CineIQ
+git lfs pull
 ```
 
 **2. Install production dependencies:**
